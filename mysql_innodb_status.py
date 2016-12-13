@@ -2,7 +2,7 @@
 import re, hashlib, time, datetime
 import MySQLdb
 import sys
-import pprint
+import getopt
 
 NUM_REG='\s*\d+.?\d*\s*'
 """
@@ -173,8 +173,8 @@ INNODB_STATUS_DICT = {
             'master_thread_log_flush_and_writes':['^srv_master_thread log flush and writes:','$','NUM']
     }
 }
-def query_innodb_status():
-    conn = MySQLdb.connect('localhost', 'testuser', 'testpwd', 'information_schema', charset="utf8");
+def query_innodb_status(p_host,p_user,p_pwd):
+    conn = MySQLdb.connect(p_host, p_user, p_pwd, 'information_schema', charset="utf8");
     query = "SHOW ENGINE INNODB STATUS;"
     cursor = conn.cursor()
     cursor.execute(query)
@@ -248,11 +248,6 @@ def deal_log(v_data):
                         break
                     if cur_section=='insert_buffer_adaptive_hash_index' and re.findall("Hash table size",line):
                         key_prefix = ''
-                    #if re.findall("INNODB MONITOR OUTPUT$",line):                        
-                    #    print 'line:',line
-                    #    print 're_str:',re_str
-                    #    print 'item:',item
-                    #    print '-'*30
                     if re.findall(re_str,line):
                         if INNODB_STATUS_DICT[cur_section][item][1]=="$":
                             val = re.split(INNODB_STATUS_DICT[cur_section][item][0],line)[-1]
@@ -264,12 +259,31 @@ def deal_log(v_data):
                             result_dict[cur_section][item]={'val':val.strip(),'unit':INNODB_STATUS_DICT[cur_section][item][2]}
                         else:
                             result_dict[cur_section][key_prefix+item]={'val':val.strip(),'unit':INNODB_STATUS_DICT[cur_section][item][2]}
-                        
     return result_dict
-   
+
+def print_help():
+    print "Usage:"
+    print "./mysql_innodb_status.py -h <database_ip> -u <username> -p <password>"
+    print "    -h : database ip address/domain name"
+    print "    -u : username"
+    print "    -p : password"
+
 if __name__ == "__main__":
+    try:
+        opts,args = getopt.getopt(sys.argv[1:],"h:u:p:")
+        for o,v in opts:
+            if o=="-h":
+                db=v
+            elif o=="-u":
+                username=v
+            elif o=="-p":
+                pwd=v
+    except getopt.GetoptError,msg:
+        print_help()
+        exit()
+
     v_innodb_status = []
-    v_innodb_status = query_innodb_status()
+    v_innodb_status = query_innodb_status(db,username,pwd)
     v_dict = deal_log(v_innodb_status)
     for section in sorted(v_dict.keys()):
         print
